@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     enable_citations: bool = True
     
     class Config:
-        env_file = ".env"
+        env_file = ".env.local"
         env_file_encoding = "utf-8"
         case_sensitive = False
 
