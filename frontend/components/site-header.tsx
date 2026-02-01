@@ -13,6 +13,7 @@ export function SiteHeader() {
 
   const navLinks = [
     { href: '/chat', label: 'Chat' },
+    { href: '/contracts', label: 'Contracts' },
     { href: '/reports', label: 'Reports' },
     { href: '/thinking-logs', label: 'Thinking Logs' },
   ];
@@ -21,8 +22,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b bg-background text-foreground">
       <div className="flex h-16 items-center justify-between mx-6">
         <Link href="/chat" className="flex items-center gap-2" prefetch={false}>
-          <Image src={RiskWiseLogo} alt="RiskWise Logo" className="w-10" />
-          <span className="font-semibold text-primary">RiskWise</span>
+          <Image src={RiskWiseLogo} alt="LegalMind Logo" className="w-10" />
+          <span className="font-semibold text-primary">LegalMind</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
           {navLinks.map((link) => (
