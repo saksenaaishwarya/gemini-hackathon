@@ -1,0 +1,37 @@
+"""
+LegalMind Backend Entry Point
+Run with: python main_new.py
+"""
+
+import uvicorn
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+
+def main():
+    """Run the LegalMind API server."""
+    from config.settings import get_settings
+    
+    settings = get_settings()
+    
+    print("=" * 60)
+    print("LegalMind API Server")
+    print("=" * 60)
+    print(f"Project: {settings.google_cloud_project}")
+    print(f"Debug Mode: {settings.debug}")
+    print(f"API Docs: http://localhost:8000/docs")
+    print("=" * 60)
+    
+    uvicorn.run(
+        "api.app_new:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug,
+        log_level="info" if settings.debug else "warning",
+    )
+
+
+if __name__ == "__main__":
+    main()
