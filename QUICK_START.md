@@ -141,7 +141,7 @@ SLA:            99.999%
 
 ### Backend Environment (.env.local)
 ```env
-GEMINI_API_KEY=AIzaSyD29-YQUAhhObLGcl_OABHxai12ocu32mA
+GEMINI_API_KEY=<your-api-key-in-.env.local>
 GOOGLE_CLOUD_PROJECT=legalmind-486106
 APP_ENV=development
 DEBUG=true
@@ -149,6 +149,8 @@ API_HOST=0.0.0.0
 API_PORT=8000
 SESSION_TIMEOUT_MINUTES=60
 ```
+
+**⚠️ IMPORTANT**: Your actual API key is stored securely in `backend/.env.local` and is gitignored.
 
 ### Firestore Security Rules (Deployed)
 ```firestore
