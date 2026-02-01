@@ -13,8 +13,6 @@ import remarkGfm from 'remark-gfm';
 import CodeDisplayBlock from '@/components/code-display-block';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { ChatSessionSidebar } from './chat-session-sidebar';
-import MapChart from './MapChart';
-import { Tooltip } from 'react-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -22,14 +20,6 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  convo_id?: string; // Make it optional since not all messages will have it
-  action?: string;
-}
-
-interface HeatmapData {
-  country: string;
-  average_risk: string;
-  breakdown: string;
 }
 
 const ChatAiIcons = [
@@ -48,7 +38,6 @@ const ChatAiIcons = [
 ];
 
 export default function ChatPage() {
-  const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -59,7 +48,6 @@ export default function ChatPage() {
     },
   ]);
   const [input, setInput] = useState('');
-  const [heatmapDataMap, setHeatmapDataMap] = useState<Record<string, HeatmapData[]>>({});
 
   const messagesRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -174,36 +162,26 @@ export default function ChatPage() {
       const data = await response.json();
       console.log('Session data:', data);
 
+      if (!response.ok || data?.success === false) {
+        setMessages([
+          {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: data?.error || 'Failed to load session.',
+          },
+        ]);
+        setIsGenerating(false);
+        return;
+      }
+
       // Transform the API response into chat messages
-      const transformedMessages = data.conversations.flatMap((conv: any) =>
-        conv.messages
-          .map((msg: any, i: number) => {
-            const messages = [];
-
-            if (i === 0 && msg.user_query) {
-              messages.push({
-                id: Date.now().toString(),
-                role: 'user',
-                content: msg.user_query,
-              });
-            }
-
-            if (msg.agent_output && !msg.agent_output.startsWith('```json\n')) {
-              if (msg.agent_name === 'Chatbot' || msg.action === 'Political Risk JSON Data') {
-                messages.push({
-                  id: Date.now().toString(),
-                  role: 'assistant',
-                  content: msg.agent_output,
-                  convo_id: conv.conversation_id,
-                  action: msg.action,
-                });
-              }
-            }
-
-            return messages;
-          })
-          .flat()
-      );
+      const transformedMessages = Array.isArray(data.messages)
+        ? data.messages.map((msg: any) => ({
+            id: msg.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content || '',
+          }))
+        : [];
 
       // Only update messages if we have some, otherwise keep the welcome message
       if (transformedMessages.length > 0) {
@@ -212,43 +190,8 @@ export default function ChatPage() {
       setSessionId(id);
       setIsGenerating(false); // Ensure generating state is reset
       setInput(''); // Clear any existing input
-
-      // After transforming messages, check for Political Risk messages and fetch their heatmap data
-      const politicalRiskMessages = transformedMessages.filter(
-        (msg) => msg.action === 'Political Risk JSON Data' && msg.convo_id
-      );
-
-      // Fetch heatmap data for each relevant conversation
-      for (const msg of politicalRiskMessages) {
-        try {
-          const response = await fetch(`/api/heatmap?conversation_id=${msg.convo_id}&session_id=${id}`);
-          if (response.ok) {
-            const data = await response.json();
-            setHeatmapDataMap((prev) => ({
-              ...prev,
-              [msg.convo_id!]: data,
-            }));
-          }
-        } catch (error) {
-          console.error('Error fetching heatmap data:', error);
-        }
-      }
     } catch (error) {
       console.error('Error loading chat logs:', error);
-    }
-  };
-
-  const handleHeatmapClick = async (convoId: string) => {
-    try {
-      console.log('Heatmap clicked:', convoId, sessionId);
-      const response = await fetch(`/api/heatmap?conversation_id=${convoId}&session_id=${sessionId}`);
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
-      }
-      const data = await response.json();
-      console.log('Heatmap data:', data);
-    } catch (error) {
-      console.error('Error fetching heatmap data:', error);
     }
   };
 
@@ -287,29 +230,14 @@ export default function ChatPage() {
                     <ChatBubbleMessage>
                       {message.content.split('```').map((part: string, index: number) => {
                         if (index % 2 === 0) {
-                          if (
-                            message.action === 'Political Risk JSON Data' &&
-                            message.convo_id &&
-                            heatmapDataMap[message.convo_id]
-                          ) {
-                            return (
-                              <div key={index}>
-                                <MapChart setTooltipContent={setContent} breakdown={heatmapDataMap[message.convo_id]} />
-                                <Tooltip id="country-tooltip" offset={10} place="top">
-                                  {content}
-                                </Tooltip>
-                              </div>
-                            );
-                          } else {
-                            return message.role === 'user' ? (
-                              <p key={index}>{part}</p>
-                            ) : (
-                              <div key={index} className={`!text-default ${styles['markdown-body']}`}>
-                                <Markdown remarkPlugins={[remarkGfm]}>{part}</Markdown>
-                              </div>
-                              // <div>{part.replace(/[\r\n]+/g, ' ')}</div>
-                            );
-                          }
+                          return message.role === 'user' ? (
+                            <p key={index}>{part}</p>
+                          ) : (
+                            <div key={index} className={`!text-default ${styles['markdown-body']}`}>
+                              <Markdown remarkPlugins={[remarkGfm]}>{part}</Markdown>
+                            </div>
+                            // <div>{part.replace(/[\r\n]+/g, ' ')}</div>
+                          );
                         } else {
                           return (
                             <pre className="whitespace-pre-wrap pt-2" key={index}>
@@ -335,15 +263,6 @@ export default function ChatPage() {
                                   />
                                 );
                               })}
-                              {/* Add Heatmap button if message has convo_id */}
-                              {message.convo_id && message.action === 'Political Risk JSON Data' && (
-                                <ChatBubbleAction
-                                  variant="outline"
-                                  className="size-5"
-                                  icon={<span className="text-xs">🗺️</span>}
-                                  onClick={() => handleHeatmapClick(message.convo_id)}
-                                />
-                              )}
                             </>
                           )}
                         </div>
