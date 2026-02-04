@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     
     # Rate Limiting
     rate_limit_requests_per_minute: int = 30
+
+    # Caching
+    response_cache_ttl_seconds: int = 60
     
     # -------------------------------------------------------------------------
     # Feature Flags
