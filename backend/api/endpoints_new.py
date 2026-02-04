@@ -3,14 +3,16 @@ LegalMind API Endpoints
 FastAPI endpoints for the legal analysis chatbot.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Depends, Security
 from fastapi.responses import StreamingResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 import asyncio
 from datetime import datetime
 import io
+import logging
 
 from managers.chatbot_manager_new import get_chatbot_manager, ChatbotManager
 from config.settings import get_settings
@@ -20,8 +22,21 @@ from tools.contract_tools import extract_contract_text
 from agents.agent_definitions_new import list_agents, AGENT_CONFIGS
 from agents.agent_strategies_new import list_workflow_templates
 
+# API key auth (optional in development if not set)
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str = Security(api_key_header)) -> None:
+    settings = get_settings()
+    if not settings.api_secret_key:
+        return
+    if api_key != settings.api_secret_key:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+
+
 # Create router
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -164,18 +179,32 @@ async def chat_endpoint(request: ChatMessage, http_request: Request):
             return ChatResponse(**cached)
 
         chatbot = get_chatbot_manager()
-        response = await chatbot.process_message(
-            session_id=request.session_id,
-            user_message=request.message,
-            contract_id=request.contract_id,
-        )
+        try:
+            response = await asyncio.wait_for(
+                chatbot.process_message(
+                    session_id=request.session_id,
+                    user_message=request.message,
+                    contract_id=request.contract_id,
+                ),
+                timeout=30.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Chat request timed out for session %s", request.session_id)
+            raise HTTPException(
+                status_code=504,
+                detail="Request timeout - the analysis took too long. Please try again.",
+            )
         if response.get("success"):
             _set_cached_response(cache_key, response)
         return ChatResponse(**response)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error in chat endpoint: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while processing your message. Please try again.",
+        )
 
 
 @router.post("/chat/session")
@@ -194,10 +223,10 @@ async def create_session(http_request: Request):
         try:
             await asyncio.wait_for(
                 chatbot.initialize_session(session_id),
-                timeout=5.0
+                timeout=10.0
             )
         except asyncio.TimeoutError:
-            print(f"⚠️ Session initialization timed out for {session_id}, returning cached response")
+            logger.warning("Session initialization timed out for %s", session_id)
             # Return response anyway - session exists locally even if Firestore write timed out
         
         return {
@@ -208,7 +237,11 @@ async def create_session(http_request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error creating session: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create session. Please try again.",
+        )
 
 
 @router.get("/chat/session/{session_id}")
