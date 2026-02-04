@@ -15,6 +15,8 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { ChatSessionSidebar } from './chat-session-sidebar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { LoadingState } from '@/components/ui/loading-state';
+import { getErrorMessage } from '@/lib/error-messages';
 
 interface ChatMessage {
   id: string;
@@ -87,7 +89,11 @@ export default function ChatPage() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), 35000)
+      );
+
+      const fetchPromise = fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,13 +104,15 @@ export default function ChatPage() {
         }),
       });
 
+      const response = (await Promise.race([fetchPromise, timeoutPromise])) as Response;
+
       if (!response.ok) {
-        // Handle HTTP errors
         const errorData = await response.json();
+        const errorText = getErrorMessage(response.status, errorData?.error || errorData?.detail);
         const errorMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `Error: ${errorData.detail || response.statusText}`,
+          content: `❌ Error: ${errorText}`,
         };
         setMessages((prev) => [...prev, errorMessage]);
         setIsGenerating(false);
@@ -114,12 +122,10 @@ export default function ChatPage() {
       const data = await response.json();
 
       if (data.success) {
-        // Store the session ID for future messages
         if (data.session_id) {
           setSessionId(data.session_id);
         }
 
-        // Add bot response - use 'message' field, not 'response'
         const botMessage = {
           id: data.session_id || Date.now().toString(),
           role: 'assistant',
@@ -127,22 +133,27 @@ export default function ChatPage() {
         };
         setMessages((prev) => [...prev, botMessage]);
       } else {
-        // Handle API error response
         const errorMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `Error: ${data.error || 'Something went wrong'}`,
+          content: `❌ Error: ${data.error || 'Something went wrong'}`,
         };
         setMessages((prev) => [...prev, errorMessage]);
       }
     } catch (error) {
-      // Handle network error
+      const errorText = error instanceof Error ? error.message : 'Unknown error';
+      const isTimeout = errorText.toLowerCase().includes('timeout') || errorText.toLowerCase().includes('too long');
+      const friendlyMessage = isTimeout
+        ? 'Request took too long. Try a shorter message or simpler query.'
+        : 'Failed to connect to the server. Please check your connection and try again.';
+
       const errorMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: 'Sorry, there was an error connecting to the server.',
+        content: `❌ Error: ${friendlyMessage}`,
       };
       setMessages((prev) => [...prev, errorMessage]);
+      console.error('Chat error:', error);
     } finally {
       setIsGenerating(false);
     }
@@ -289,7 +300,9 @@ export default function ChatPage() {
               {isGenerating && (
                 <ChatBubble variant="received">
                   <ChatBubbleAvatar src="" fallback="🤖" />
-                  <ChatBubbleMessage isLoading />
+                  <ChatBubbleMessage>
+                    <LoadingState message="AI is analyzing your question..." />
+                  </ChatBubbleMessage>
                 </ChatBubble>
               )}
             </ChatMessageList>
