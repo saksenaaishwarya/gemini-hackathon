@@ -3,7 +3,7 @@ LegalMind API Endpoints
 FastAPI endpoints for the legal analysis chatbot.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 
 from managers.chatbot_manager_new import get_chatbot_manager, ChatbotManager
+from config.settings import get_settings
 from services.firestore_service import FirestoreService
 from services.storage_service import StorageService
 from agents.agent_definitions_new import list_agents, AGENT_CONFIGS
@@ -18,6 +19,58 @@ from agents.agent_strategies_new import list_workflow_templates
 
 # Create router
 router = APIRouter()
+
+
+# =============================================================================
+# Simple In-Memory Rate Limiting & Request De-dupe
+# =============================================================================
+
+_rate_limit_store: Dict[str, List[float]] = {}
+_response_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_client_key(request: Request) -> str:
+    """Build a key for rate limiting and caching."""
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit_check(request: Request, action: str) -> None:
+    """Raise 429 if rate limit exceeded for the client."""
+    settings = get_settings()
+    limit = max(settings.rate_limit_requests_per_minute, 1)
+    window_seconds = 60
+
+    key = f"{_get_client_key(request)}:{action}"
+    now = datetime.utcnow().timestamp()
+    timestamps = _rate_limit_store.get(key, [])
+    # Keep only last minute
+    timestamps = [t for t in timestamps if now - t < window_seconds]
+    if len(timestamps) >= limit:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait and retry.")
+    timestamps.append(now)
+    _rate_limit_store[key] = timestamps
+
+
+def _get_cache_key(request: ChatMessage) -> str:
+    """Create a deterministic cache key for duplicate chat requests."""
+    return f"{request.session_id}:{request.contract_id or ''}:{request.message.strip()}"
+
+
+def _get_cached_response(cache_key: str, ttl_seconds: int = 30) -> Optional[Dict[str, Any]]:
+    entry = _response_cache.get(cache_key)
+    if not entry:
+        return None
+    if datetime.utcnow().timestamp() - entry["ts"] > ttl_seconds:
+        _response_cache.pop(cache_key, None)
+        return None
+    return entry["response"]
+
+
+def _set_cached_response(cache_key: str, response: Dict[str, Any]) -> None:
+    _response_cache[cache_key] = {
+        "ts": datetime.utcnow().timestamp(),
+        "response": response,
+    }
 
 
 # =============================================================================
@@ -88,7 +141,7 @@ class SessionInfo(BaseModel):
 # =============================================================================
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatMessage):
+async def chat_endpoint(request: ChatMessage, http_request: Request):
     """Process a chat message and return the agent response.
     
     Args:
@@ -98,25 +151,39 @@ async def chat_endpoint(request: ChatMessage):
         Agent response with citations and metadata
     """
     try:
+        _rate_limit_check(http_request, "chat")
+        if not request.message or not request.message.strip():
+            raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+        cache_key = _get_cache_key(request)
+        cached = _get_cached_response(cache_key)
+        if cached:
+            return ChatResponse(**cached)
+
         chatbot = get_chatbot_manager()
         response = await chatbot.process_message(
             session_id=request.session_id,
             user_message=request.message,
             contract_id=request.contract_id,
         )
+        if response.get("success"):
+            _set_cached_response(cache_key, response)
         return ChatResponse(**response)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/chat/session")
-async def create_session():
+async def create_session(http_request: Request):
     """Create a new chat session.
     
     Returns:
         New session information
     """
     try:
+        _rate_limit_check(http_request, "session")
         session_id = str(uuid.uuid4())
         chatbot = get_chatbot_manager()
         await chatbot.initialize_session(session_id)
@@ -126,6 +193,8 @@ async def create_session():
             "session_id": session_id,
             "created_at": datetime.now().isoformat(),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
