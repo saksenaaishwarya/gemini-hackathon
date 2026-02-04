@@ -9,6 +9,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from config.settings import get_settings
 from managers.chatbot_manager_new import get_chatbot_manager
@@ -80,6 +81,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Add GZIP compression for responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add CORS middleware
 settings = get_settings()
