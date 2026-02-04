@@ -700,7 +700,7 @@ class ChatbotManager:
             "messages": messages,
         }
     
-    async def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
+    async def get_session_history(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         """Get the message history for a session.
         
         Args:
@@ -709,7 +709,7 @@ class ChatbotManager:
         Returns:
             List of messages
         """
-        messages = await self.firestore.get_messages(session_id)
+        messages = await self.firestore.get_messages(session_id, limit=limit)
         return messages
     
     async def close_session(self, session_id: str):
