@@ -1,5 +1,9 @@
 # In utils/database_utils.py, implement a connection pool:
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
+    
 import threading
 from config.settings import get_database_connection_string
 
