@@ -10,11 +10,13 @@ from typing import Optional, List, Dict, Any
 import uuid
 import asyncio
 from datetime import datetime
+import io
 
 from managers.chatbot_manager_new import get_chatbot_manager, ChatbotManager
 from config.settings import get_settings
 from services.firestore_service import FirestoreService
 from services.storage_service import StorageService
+from tools.contract_tools import extract_contract_text
 from agents.agent_definitions_new import list_agents, AGENT_CONFIGS
 from agents.agent_strategies_new import list_workflow_templates
 
@@ -312,7 +314,11 @@ async def upload_contract(
         # Upload to Cloud Storage
         storage = StorageService()
         content = await file.read()
-        file_url = await storage.upload_contract(contract_id, file.filename, content)
+        file_url = await storage.upload_contract_pdf(
+            io.BytesIO(content),
+            contract_id,
+            file.filename,
+        )
         
         # Parse parties if provided
         party_list = None
@@ -337,6 +343,21 @@ async def upload_contract(
             "status": "uploaded",
         }
         await firestore.create_contract(contract_id, contract_data)
+
+        # Trigger background text extraction for analysis readiness
+        async def _extract_text():
+            try:
+                result = await extract_contract_text(contract_id)
+                if result.get("status") == "success":
+                    await firestore.update_document(
+                        firestore.CONTRACTS,
+                        contract_id,
+                        {"status": "text_extracted"},
+                    )
+            except Exception as e:
+                print(f"⚠️ Background extraction failed for {contract_id}: {e}")
+
+        asyncio.create_task(_extract_text())
         
         return ContractResponse(
             success=True,
@@ -463,9 +484,11 @@ async def download_contract(contract_id: str):
             raise HTTPException(status_code=404, detail="Contract not found")
         
         storage = StorageService()
-        download_url = await storage.get_signed_url(
-            f"contracts/{contract_id}/{contract['filename']}"
-        )
+        blob_path = contract.get("file_url")
+        if not blob_path:
+            blob_path = f"{storage.settings.gcs_contracts_folder}/{contract['filename']}"
+
+        download_url = await storage.get_signed_url(blob_path)
         
         return {
             "success": True,
