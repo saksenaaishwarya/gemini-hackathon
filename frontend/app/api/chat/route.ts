@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     if (!message) {
       return NextResponse.json(
         {
+          success: false,
           status: 'error',
           response: null,
           error: 'Message is required',
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       if (!sessionResponse.ok || !sessionData.session_id) {
         return NextResponse.json(
           {
+            success: false,
             status: 'error',
             response: null,
             error: sessionData?.detail || sessionData?.error || 'Failed to create session',
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
     if (!response.ok || data?.success === false) {
       return NextResponse.json(
         {
+          success: false,
           status: 'error',
           response: null,
           error: data?.error || data?.detail || 'Failed to process message',
@@ -70,7 +73,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      success: true,
       status: 'success',
+      message: data.message || '',
       response: data.message || '',
       error: null,
       session_id: data.session_id || activeSessionId || null,
@@ -81,6 +86,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
+        success: false,
         status: 'error',
         response: null,
         error: error instanceof Error ? error.message : 'An error occurred',
