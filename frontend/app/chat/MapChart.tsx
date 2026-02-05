@@ -24,14 +24,14 @@ const getLikelihoodTextColor = (value: number) => {
   return '#7F0000'; // Dark crimson red
 };
 
-const MapChart = ({ setTooltipContent, breakdown }) => {
+const MapChart = ({ setTooltipContent, breakdown }: any) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState<any>(null);
 
-  const parseBreakdown = (data) => {
+  const parseBreakdown = (data: any) => {
     try {
       return JSON.parse(data);
-    } catch (e) {
+    } catch (e: any) {
       return [];
     }
   };
@@ -57,12 +57,12 @@ const MapChart = ({ setTooltipContent, breakdown }) => {
           scale: 147,
         }}
       >
-        <Sphere stroke="#E4E5E6" strokeWidth={0.5} />
+        <Sphere id="sphere" fill="transparent" stroke="#E4E5E6" strokeWidth={0.5} />
         <Graticule stroke="#E4E5E6" strokeWidth={0.5} />
         <Geographies geography={countries}>
-          {({ geographies }) =>
-            geographies.map((geo) => {
-              const countryData = breakdown.find((item) => item.country === geo.properties.name);
+          {({ geographies }: any) =>
+            geographies.map((geo: any) => {
+              const countryData = breakdown.find((item: any) => item.country === geo.properties.name);
               const likelihood = countryData ? parseInt(countryData.average_risk) : 0;
 
               return (
@@ -129,7 +129,7 @@ const MapChart = ({ setTooltipContent, breakdown }) => {
                   Date: {new Date(selectedCountry.datetime_stamp).toLocaleDateString()}
                 </p>
               </div>
-              {parseBreakdown(selectedCountry.breakdown).map((item, index) => (
+              {parseBreakdown(selectedCountry.breakdown).map((item: any, index: number) => (
                 <div key={index} className="mb-6">
                   <p className="text-md font-semibold mb-4">Risk Breakdown</p>
                   <Table className="border">
