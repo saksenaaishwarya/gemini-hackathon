@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trash2, CloudDownload, RefreshCcw } from 'lucide-react';
 
+const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
 interface ContractRecord {
   id?: string;
   name?: string;
@@ -54,7 +56,7 @@ export default function ContractsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/contracts');
+      const response = await fetch(`${apiBase}/contracts`);
       const data = await response.json();
 
       if (!response.ok || data?.status === 'error') {
@@ -104,7 +106,7 @@ export default function ContractsPage() {
         formData.append('notes', formState.notes.trim());
       }
 
-      const response = await fetch('/api/contracts', {
+      const response = await fetch(`${apiBase}/contracts/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -134,7 +136,7 @@ export default function ContractsPage() {
   const handleDelete = async (contractId?: string) => {
     if (!contractId) return;
     try {
-      const response = await fetch(`/api/contracts/${contractId}`, { method: 'DELETE' });
+      const response = await fetch(`${apiBase}/contracts/${contractId}`, { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok || data?.status === 'error') {
         throw new Error(data?.error || 'Failed to delete contract');
@@ -148,7 +150,7 @@ export default function ContractsPage() {
   const handleDownload = async (contractId?: string) => {
     if (!contractId) return;
     try {
-      const response = await fetch(`/api/contracts/${contractId}/download`);
+      const response = await fetch(`${apiBase}/contracts/${contractId}/download`);
       const data = await response.json();
       if (!response.ok || data?.status === 'error' || !data?.download_url) {
         throw new Error(data?.error || 'Failed to get download link');
