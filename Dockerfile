@@ -24,6 +24,7 @@ EXPOSE 8000
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
+ENV USE_VERTEX_AI=true
 
 # Run the application
 CMD ["python", "main_new.py"]
