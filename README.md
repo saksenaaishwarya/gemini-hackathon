@@ -83,25 +83,45 @@ Perfect for legal teams, compliance officers, contract managers, and enterprises
 
 ### **Multi-Agent System** 🤖
 
-```
-Query Classifier
-      ↓
-┌─────────────────────────────────────┐
-│         Agent Router                │
-├─────────────────────────────────────┤
-│  CONTRACT_PARSER → Contract Tools   │
-│  LEGAL_RESEARCH → Research Tools    │
-│  COMPLIANCE_CHECKER → Compliance    │
-│  RISK_ASSESSMENT → Risk Tools       │
-│  LEGAL_MEMO → Document Tools        │
-│  ASSISTANT → General Q&A            │
-└─────────────────────────────────────┘
-      ↓
-  Tool Execution
-      ↓
-  Response Generation
-      ↓
-    User
+```text
++--------------------+        +-----------------------------+
+|        User        |        |     Next.js Dashboard      |
+|  (Uploads Legal    |<------>|   (Review & Interactions)  |
+|        PDF)        |        +--------------^-------------+
++---------+----------+                       |
+          |                                  |
+          v                                  |
++---------------------------+                |
+|   Upload & Ingestion      |                |
+|  (FastAPI / Cloud Run)    |                |
++-------------+-------------+                |
+              |                              |
+              v                              |
+      +--------------------+                 |
+      |  Router / Query    |                 |
+      |     Classifier     |-----------------+
+      +----+-------+-------+
+           |       |
+   +-------+       +-----------------------------+
+   |                             |              |
+   v                             v              v
++----------+              +-------------+  +-------------+
+| Risk    |              | Compliance  |  |  Summary    |
+| Agent   |              | Agent       |  | Agent       |
++----+----+              +------+------ +--+-----+------+
+     |                          |               |
+     +-----------+--------------+---------------+
+                 v
+        +----------------------------+
+        |      Firestore Memory      |
+        |  (Insights, Flags, Notes)  |
+        +--------------+-------------+
+                       |
+                       v
+            +------------------------+
+            |  Aggregation / API     |
+            |   (FastAPI Backend)    |
+            +------------------------+
 ```
 
 ### **Tech Stack** 🛠️
