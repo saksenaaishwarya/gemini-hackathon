@@ -5,7 +5,10 @@ import asyncio
 import json
 import re
 import os
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
 import time
 from datetime import datetime
 from dotenv import load_dotenv
@@ -755,6 +758,8 @@ class ChatbotManager:
             if risk_agent_name == POLITICAL_RISK_AGENT:
                 try:
                     # Query the event log for political risk JSON data
+                    if not pyodbc:
+                        raise ImportError("pyodbc not available")
                     conn = pyodbc.connect(self.connection_string)
                     cursor = conn.cursor()
                     
@@ -1662,6 +1667,8 @@ class ChatbotManager:
             # Try to get political risk data from the database if it's not in latest_responses
             if risk_type == POLITICAL_RISK_AGENT and risk_type not in available_data:
                 try:
+                    if not pyodbc:
+                        raise ImportError("pyodbc not available")
                     conn = pyodbc.connect(self.connection_string)
                     cursor = conn.cursor()
                     
