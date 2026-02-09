@@ -1,6 +1,6 @@
 """
 LegalMind Configuration Settings
-Google Cloud / Gemini API Configuration
+Google Cloud / Vertex AI Configuration
 """
 
 import os
@@ -14,15 +14,9 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # -------------------------------------------------------------------------
-    # Gemini API Configuration
+    # Vertex AI Configuration
     # -------------------------------------------------------------------------
-    gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
-    # Use Vertex AI by default - reads from USE_VERTEX_AI env var (true/false)
-    use_vertex_ai: bool = Field(
-        default=True,
-        description="Use Vertex AI instead of public Gemini API. Set USE_VERTEX_AI=true/false in environment"
-    )
     
     # -------------------------------------------------------------------------
     # Google Cloud Project Configuration
@@ -74,31 +68,6 @@ class Settings(BaseSettings):
     enable_thinking_logs: bool = True
     enable_citations: bool = True
 
-    @field_validator("use_vertex_ai", mode="before")
-    @classmethod
-    def read_use_vertex_ai(cls, v):
-        """Read USE_VERTEX_AI from environment variable."""
-        # If called during init, v is the field default
-        # Check environment variable first
-        env_val = os.getenv("USE_VERTEX_AI", "true").lower()
-        if env_val in ("true", "1", "yes"):
-            return True
-        elif env_val in ("false", "0", "no"):
-            return False
-        # Default to True (use Vertex AI) for production
-        return True
-
-    @field_validator("gemini_api_key", mode="after")
-    @classmethod
-    def validate_api_key(cls, v, info):
-        """Validate API key is set if not using Vertex AI."""
-        # Check if using Vertex AI from environment (default to true for production)
-        use_vertex_ai = os.getenv("USE_VERTEX_AI", "true").lower() == "true"
-        if not use_vertex_ai and not v:
-            # Only warn, don't fail - Vertex AI might use ADC
-            print("⚠️ GEMINI_API_KEY not set - will attempt Vertex AI or ADC authentication")
-        return v or ""
-
     @field_validator("google_cloud_project", mode="after")
     @classmethod
     def validate_project(cls, v):
@@ -109,19 +78,6 @@ class Settings(BaseSettings):
                 "Please set it in your .env.local file."
             )
         return v
-    
-    def model_post_init(self, __context):
-        """Ensure USE_VERTEX_AI environment variable is respected after initialization."""
-        env_val = os.getenv("USE_VERTEX_AI", "true").lower()
-        if env_val in ("true", "1", "yes"):
-            self.use_vertex_ai = True
-            print(f"✅ USE_VERTEX_AI=true from environment - using Vertex AI")
-        elif env_val in ("false", "0", "no"):
-            self.use_vertex_ai = False
-            print(f"⚠️ USE_VERTEX_AI=false from environment - using public Gemini API")
-        else:
-            self.use_vertex_ai = True
-            print(f"✅ USE_VERTEX_AI not set, defaulting to True - using Vertex AI")
     
     class Config:
         env_file = ".env.local"
@@ -141,21 +97,6 @@ def get_settings() -> Settings:
         Settings: Application settings
     """
     return Settings()
-
-
-def get_gemini_api_key() -> str:
-    """Get the Gemini API key from settings.
-    
-    Returns:
-        str: The Gemini API key
-        
-    Raises:
-        ValueError: If the API key is not configured and not using Vertex AI
-    """
-    settings = get_settings()
-    if settings.use_vertex_ai:
-        return ""
-    return settings.gemini_api_key
 
 
 def get_google_cloud_project() -> str:
@@ -196,13 +137,6 @@ def validate_settings() -> bool:
         raise ValueError(
             "Missing required environment variable: GOOGLE_CLOUD_PROJECT. "
             "Please check your .env file."
-        )
-    
-    # API key is only required if not using Vertex AI
-    if not settings.use_vertex_ai and not settings.gemini_api_key:
-        raise ValueError(
-            "Missing required environment variable: GEMINI_API_KEY. "
-            "Please set it in your .env file or set USE_VERTEX_AI=true to use Vertex AI."
         )
     
     return True
