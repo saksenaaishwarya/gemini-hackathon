@@ -77,11 +77,9 @@ class Settings(BaseSettings):
         # Check if using Vertex AI from environment
         use_vertex_ai = os.getenv("USE_VERTEX_AI", "false").lower() == "true"
         if not use_vertex_ai and not v:
-            raise ValueError(
-                "Missing required environment variable: GEMINI_API_KEY. "
-                "Please set it in your .env.local file or set USE_VERTEX_AI=true to use Vertex AI."
-            )
-        return v
+            # Only warn, don't fail - Vertex AI might use ADC
+            print("⚠️ GEMINI_API_KEY not set - will attempt Vertex AI or ADC authentication")
+        return v or ""
 
     @field_validator("google_cloud_project", mode="after")
     @classmethod
@@ -158,17 +156,18 @@ def validate_settings() -> bool:
     """
     settings = get_settings()
     
-    required = [
-        ("GEMINI_API_KEY", settings.gemini_api_key),
-        ("GOOGLE_CLOUD_PROJECT", settings.google_cloud_project),
-    ]
-    
-    missing = [name for name, value in required if not value]
-    
-    if missing:
+    # GOOGLE_CLOUD_PROJECT is always required
+    if not settings.google_cloud_project:
         raise ValueError(
-            f"Missing required environment variables: {', '.join(missing)}. "
+            "Missing required environment variable: GOOGLE_CLOUD_PROJECT. "
             "Please check your .env file."
+        )
+    
+    # API key is only required if not using Vertex AI
+    if not settings.use_vertex_ai and not settings.gemini_api_key:
+        raise ValueError(
+            "Missing required environment variable: GEMINI_API_KEY. "
+            "Please set it in your .env file or set USE_VERTEX_AI=true to use Vertex AI."
         )
     
     return True
