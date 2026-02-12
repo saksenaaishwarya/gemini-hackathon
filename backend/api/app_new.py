@@ -3,6 +3,22 @@ LegalMind FastAPI Application
 Main application entry point for the legal analysis API.
 """
 
+# ------------------------------------------------------------------
+# Monkey-patch: google-api-core 2.29.0 check_python_version() hangs
+# on Python 3.13+ Windows because metadata.packages_distributions()
+# calls os.stat on every installed file and takes forever.
+# We replace it with a no-op so the rest of the google cloud stack
+# can import normally.  Safe to remove once google-api-core ships a
+# version that fixes this (> 2.29.0).
+# ------------------------------------------------------------------
+import sys as _sys
+if _sys.version_info >= (3, 13):
+    try:
+        import google.api_core._python_version_support as _pvs
+        _pvs.check_python_version = lambda *a, **kw: None  # no-op
+    except Exception:
+        pass
+
 import uuid
 import json
 import asyncio
@@ -93,9 +109,24 @@ allowed_origins = [
     if origin.strip()
 ]
 
+# Allow all origins in debug mode, or any .run.app domain in production (Cloud Run)
+# This ensures CORS works regardless of Cloud Run's URL changes
+import re
+def is_allowed_origin(origin: str) -> bool:
+    """Check if origin is allowed - permits all .run.app domains."""
+    if settings.debug or not allowed_origins:
+        return True
+    if origin in allowed_origins:
+        return True
+    # Allow any Cloud Run domain (*.run.app)
+    if re.match(r'^https?://[a-z0-9-]+\.run\.app$', origin):
+        return True
+    return False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug or not allowed_origins else allowed_origins,
+    allow_origins=["*"] if settings.debug else allowed_origins if allowed_origins else ["*"],
+    allow_origin_regex=r"https?://.*\.run\.app$",  # Allow all .run.app domains
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
