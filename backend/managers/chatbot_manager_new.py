@@ -277,7 +277,7 @@ class ChatbotManager:
                 "message_count": 0,
                 "active_contract_id": None,
             }
-            await self.firestore.create_session(session_id, session_data)
+            await self.firestore.create_session(session_id, session_data=session_data)
             
             # Local session state
             session = {
