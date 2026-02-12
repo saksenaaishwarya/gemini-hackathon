@@ -359,23 +359,33 @@ class FirestoreService:
     async def create_session(
         self,
         session_id: str,
+        session_data: Optional[Dict[str, Any]] = None,
         contract_id: Optional[str] = None,
     ) -> str:
         """Create a new chat session.
         
         Args:
             session_id: Session ID (usually UUID)
+            session_data: Optional session metadata
             contract_id: Optional associated contract
             
         Returns:
             Session ID
         """
-        data = {
+        data: Dict[str, Any] = {
             "session_id": session_id,
-            "contract_id": contract_id,
             "status": "active",
             "last_activity": firestore.SERVER_TIMESTAMP,
         }
+
+        if isinstance(session_data, dict):
+            data.update(session_data)
+            data.setdefault("id", session_id)
+            if "contract_id" not in data and "active_contract_id" in data:
+                data["contract_id"] = data.get("active_contract_id")
+
+        if contract_id:
+            data["contract_id"] = contract_id
         
         return await self.create_document(self.SESSIONS, data, document_id=session_id)
     
@@ -442,13 +452,21 @@ class FirestoreService:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get messages for a session."""
-        return await self.query_documents(
-            self.MESSAGES,
-            filters=[("session_id", "==", session_id)],
-            order_by="created_at",
-            order_direction="ASCENDING",
-            limit=limit
-        )
+        try:
+            return await self.query_documents(
+                self.MESSAGES,
+                filters=[("session_id", "==", session_id)],
+                order_by="created_at",
+                order_direction="ASCENDING",
+                limit=limit
+            )
+        except Exception as e:
+            print(f"Warning: Firestore message query failed, falling back to unordered results: {e}")
+            return await self.query_documents(
+                self.MESSAGES,
+                filters=[("session_id", "==", session_id)],
+                limit=limit
+            )
     
     # =========================================================================
     # Thinking Log Operations
