@@ -10,14 +10,35 @@ from vertexai.generative_models import (
     GenerationConfig,
     Tool,
     FunctionDeclaration,
-    Type,
     GoogleSearchRetrieval,
     Part,
 )
+
+# Handle version compatibility for Type and Schema
 try:
-    from vertexai.generative_models import Schema
+    from vertexai.generative_models import Type, Schema
 except ImportError:
-    from vertexai.generative_models.types import Schema
+    try:
+        # Try alternate import path
+        from vertexai.generative_models.types import Type, Schema
+    except (ImportError, AttributeError):
+        # Fallback: use google-genai types if available
+        try:
+            from google.genai.types import Type, Schema
+        except (ImportError, AttributeError):
+            # Final fallback: create placeholder types
+            class Type:
+                OBJECT = "object"
+                STRING = "string"
+                NUMBER = "number"
+                INTEGER = "integer"
+                BOOLEAN = "boolean"
+                ARRAY = "array"
+
+            class Schema:
+                def __init__(self, **kwargs):
+                    for k, v in kwargs.items():
+                        setattr(self, k, v)
 from typing import Dict, List, Any, Optional, Callable
 import json
 import asyncio
