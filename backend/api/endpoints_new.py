@@ -383,15 +383,22 @@ async def upload_contract(
         contract_data = {
             "id": contract_id,
             "name": name,
+            "title": name,
             "filename": file.filename,
             "file_url": file_url,
+            "content": "",
             "type": contract_type,
-            "parties": party_list,
+            "contract_type": contract_type,
+            "parties": party_list or [],
             "notes": notes,
             "uploaded_at": datetime.now().isoformat(),
             "status": "uploaded",
+            "overall_risk_score": None,
+            "compliance_status": None,
+            "key_dates": [],
+            "clauses": [],
         }
-        await firestore.create_contract(contract_id, contract_data)
+        await firestore.create_document(firestore.CONTRACTS, contract_data, document_id=contract_id)
 
         # Trigger background text extraction for analysis readiness
         async def _extract_text():
