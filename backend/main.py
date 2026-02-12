@@ -15,6 +15,9 @@ backend_dir = Path(__file__).parent
 load_dotenv(backend_dir / ".env.local")
 load_dotenv(backend_dir / ".env")
 
+# Expose ASGI app for Cloud Run buildpacks (expects main:app)
+from api.app_new import app as app
+
 
 def main():
     """Run the LegalMind API server."""
